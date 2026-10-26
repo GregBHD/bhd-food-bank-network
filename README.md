@@ -2,7 +2,7 @@
 
 Buildless HTML/CSS/JavaScript prototype. All organizations, prices, records, and impact are illustrative. No external messages, payments, or bookings are performed.
 
-Serve dist/. Hosting configuration is .openai/hosting.json. Changes stay in browser localStorage under bhd-food-network-v2. Reset demo restores seeds. Photo uploads stay local.
+Serve the `dist/` directory using any static web server. Changes stay in browser localStorage under bhd-food-network-v2. Reset demo restores seeds. Photo uploads stay local.
 
 Demo: approve the final produce allocation in Donors & Sponsors, pledge the remaining transportation gap, switch to BHD Operations, confirm pending funding, assign refrigerated capacity and approve route review, release for pickup, then record actual pounds received. Impact updates from completed shipments only.
 

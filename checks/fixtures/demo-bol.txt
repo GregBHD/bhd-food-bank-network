@@ -1,0 +1,9 @@
+DEMONSTRATION DOCUMENT - NO REAL SHIPMENT
+Product: Rice and whole grains
+Pallets: 10
+Weight: 20,000 lb
+Pickup: Columbus, OH
+Temperature: Ambient
+Lot: DEMO-RICE-01
+Shipper: Heartland Grain Supply
+Demo pickup/receiving signer: Sample coordinator

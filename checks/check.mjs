@@ -5,7 +5,7 @@ const nodes={};
 const node=id=>nodes[id]??={innerHTML:'',textContent:'',classList:{add(){},remove(){}},focus(){}};
 const handlers={};
 const context=vm.createContext({console,Intl,Date,Math,JSON,Number,String,Set,Error,localStorage:{getItem(){return null},setItem(){}},setTimeout(){},clearTimeout(){},document:{getElementById:node,querySelector(){return null},addEventListener(n,fn){handlers[n]=fn},body:{classList:{add(){},remove(){}},contains(){return true}},activeElement:null},window:{scrollTo(){}}});
-vm.runInContext(fs.readFileSync('dist/data.js','utf8')+'\n'+fs.readFileSync('dist/app.js','utf8')+'\n'+fs.readFileSync('dist/redesign.js','utf8')+'\n'+fs.readFileSync('dist/funding.js','utf8'),context);
+vm.runInContext(fs.readFileSync('dist/data.js','utf8')+'\n'+fs.readFileSync('dist/app.js','utf8')+'\n'+fs.readFileSync('dist/redesign.js','utf8')+'\n'+fs.readFileSync('dist/funding.js','utf8')+'\n'+fs.readFileSync('dist/exchange.js','utf8'),context);
 const read=s=>vm.runInContext(s,context);
 // A returning browser receives the sale example without losing or duplicating records.
 read('const previousDemo=seed();previousDemo.items=previousDemo.items.filter(f=>f.id!=="F-1048");previousDemo.items[0].notes="Keep my edit";previousDemo.saved.push({query:"peaches"});addSaleDemoListing(previousDemo)');
@@ -126,3 +126,91 @@ assert.ok(nodes.app.innerHTML.includes('$250 general fund'));
 read('state=seed();fundingView="orders";leaderboardView="all"');
 assert.equal(read('state.generalDonations.length'),0);
 console.log('PASS: general donations require confirmation, count once in rankings, and do not fund an order or inflate completed impact.');
+
+// Matching requires compatible inventory and recipient capability, with deduplicated alerts.
+read('state=seed();state.role="bank"');
+assert.ok(read('needMatches(needBy("N-7101")).some(m=>m.itemId==="F-1043")'));
+assert.ok(read('scanNeeds()')>0);
+assert.equal(read('scanNeeds()'),0,'A rerender must not duplicate matching alerts');
+read('item("F-1043").status="Closed"');
+assert.ok(!read('needMatches(needBy("N-7101")).some(m=>m.itemId==="F-1043")'));
+read('item("F-1043").status="Open";partnerNamed(banks[0]).status="Pending"');
+assert.equal(read('needMatches(needBy("N-7101")).length'),0);
+read('state=seed();state.role="bank";state.bank=banks[2]');
+assert.throws(()=>read('joinPool("POOL-4101",banks[2],4)'),/no longer available/);
+assert.equal(read('held(item("F-1046"))'),7,'Rejected join must not reserve inventory');
+read('joinPool("POOL-4101",banks[2],3)');
+assert.equal(read('held(item("F-1046"))'),10);
+assert.throws(()=>read('joinPool("POOL-4101",banks[2],1)'),/no longer available/);
+assert.throws(()=>read('confirmPool("POOL-4101")'),/Operations/);
+const gapBeforeLinkedShipment=read("networkFundingGap()");
+read('state.role="ops";confirmPool("POOL-4101");const pooledShipment=createPoolShipment("POOL-4101")');
+assert.equal(read("networkFundingGap()"),gapBeforeLinkedShipment,"A linked shipment must not duplicate the home funding gap");
+assert.equal(read('accepted(item("F-1046"))'),10);
+assert.equal(read('createPoolShipment("POOL-4101").id'),read('pooledShipment.id'),'No duplicate transportation request');
+assert.equal(read('poolCosts(poolBy("POOL-4101")).remaining'),3650);
+
+// General fund allocation is atomic and attributed only once, even after money is used.
+read('const gift=addGeneralDonation("Traceable supporter",500);confirmGeneralDonation(gift.id)');
+assert.throws(()=>read('allocateGeneral({donationId:gift.id,targetType:"order",targetId:"O-3101",purpose:"food",amount:300,reason:"Buy rice"})'),/recipient/);
+read('ex().fund.recipient="Demo food-bank fund"');
+assert.throws(()=>read('allocateGeneral({donationId:gift.id,targetType:"order",targetId:"O-3101",purpose:"food",amount:300,reason:""})'),/required/);
+assert.equal(read('order("O-3101").pledges.length'),2,'Invalid reason must not insert a pledge');
+read('const allocation=allocateGeneral({donationId:gift.id,targetType:"order",targetId:"O-3101",purpose:"food",amount:300,reason:"Buy rice"})');
+assert.equal(read('generalAvailable()'),200);
+assert.equal(read('orderGap(order("O-3101"),"food")'),2400);
+assert.equal(read('fundingLeaders().reduce((n,r)=>n+r.score,0)'),5720,'Allocation cannot count as a second gift');
+assert.throws(()=>read('allocateGeneral({donationId:gift.id,targetType:"shipment",targetId:pooledShipment.id,purpose:"delivery",amount:201,reason:"Freight"})'),/Insufficient/);
+read('returnAllocation(allocation.id)');
+assert.equal(read('generalAvailable()'),500);
+assert.equal(read('orderGap(order("O-3101"),"food")'),2700);
+
+// Carrier selection, linked budgets, evidence gates and completed impact form one flow.
+read('const poolBid=addCarrierBid({shipmentId:pooledShipment.id,partnerId:"P8",amount:650,pallets:26,pounds:40000,temp:"Ambient",expires:"2026-10-30",window:"08:00-15:00",kind:"Paid quote"})');
+read('partnerBy("P8").status="Pending"');
+assert.throws(()=>read('acceptCarrierBid(poolBid.id)'),/review/);
+read('partnerBy("P8").status="Reviewed";acceptCarrierBid(poolBid.id)');
+assert.throws(()=>read('recordBuyerBalances("POOL-4101")'),/pending/);
+read('confirmOrderPledge("O-3101","op2");recordBuyerBalances("POOL-4101")');
+assert.equal(read('confirmed(pooledShipment)'),650);
+assert.equal(read('orderSum(order("O-3101"),"delivery","Confirmed")'),650,'Linked transportation must not count twice');
+assert.equal(read('fundingLeaders().reduce((n,r)=>n+r.score,0)'),6020,'Buyer payments are excluded from donor rankings');
+read('routeReview(pooledShipment.id,{lot:"DEMO-RICE-01",confirmed:true})');
+assert.equal(read('canDispatch(pooledShipment)'),false,'BOL is required before release');
+read('ex().documents.push({id:"test-bol",parentType:"shipment",parentId:pooledShipment.id,kind:"Bill of lading",name:"test.txt",date:demoDate,size:10});');
+assert.equal(read('canDispatch(pooledShipment)'),true);
+read('pooledShipment.status="In transit"');
+assert.throws(()=>read('recordReceiving(pooledShipment.id,{name:"Receiver",pounds:20000,date:"2026-10-29",notes:"All received",condition:"Accepted",allStops:true})'),/pickup/);
+read('recordPickup(pooledShipment.id,{signer:"Demo driver",lot:"DEMO-RICE-01"})');
+assert.throws(()=>read('recordPickup(pooledShipment.id,{signer:"Demo driver"})'),/already/);
+assert.throws(()=>read('recordReceiving(pooledShipment.id,{name:"Receiver",pounds:20001,date:"2026-10-29",notes:"All received",condition:"Accepted",allStops:true})'),/valid/);
+assert.throws(()=>read('recordReceiving(pooledShipment.id,{name:"Receiver",pounds:20000,date:"2026-10-29",notes:"All received",condition:"Accepted",allStops:true})'),/proof of delivery/);
+read('ex().documents.push({id:"test-pod",parentType:"shipment",parentId:pooledShipment.id,kind:"Proof of delivery",name:"test.txt",date:demoDate,size:10})');
+assert.equal(read('recordReceiving(pooledShipment.id,{name:"Receiver",pounds:20000,date:"2026-10-29",notes:"All received",condition:"Accepted",allStops:true})'),true);
+assert.ok(read('deliveredImpactPage()').includes('66,000'));
+assert.ok(read('deliveredImpactPage()').includes('$3,570'));
+assert.equal(read('fundingLeaders().reduce((n,r)=>n+r.score,0)'),6020);
+
+read('state=seed();state.role="ops";const recurringDraft=draftRecurringPickup("R-6101")');
+assert.equal(read('recurringDraft.date'),'2026-10-29');
+assert.equal(read('ex().pickupPlans[0].nextDate'),'2026-11-05');
+assert.equal(read('canDispatch(recurringDraft)'),false);
+assert.ok(read('deliveryFundingPage()').includes('Harvest Grove Foods'));
+assert.equal(read('parseBol("Product: Canned beans\\nPallets: 4\\nWeight: 6,000 lb\\nPickup: Indianapolis, IN").pounds'),'6000');
+read('const newcomer=savePartner({name:"Demo new partner",kind:"Food bank",city:"Dayton, OH",contact:"Demo coordinator",hours:"08:00-15:00",pallets:8,temperatures:["Ambient"]})');
+assert.throws(()=>read('reviewPartner(newcomer.id,["identity","authority","capability","documents"],"Review complete")'),/document/);
+read('ex().documents.push({id:"partner-doc",parentType:"partner",parentId:newcomer.id});reviewPartner(newcomer.id,["identity","authority","capability","documents"],"Demo review")');
+assert.equal(read('partnerBy(newcomer.id).status'),'Reviewed');
+read('state=seed()');
+for(const v of ['listings','matches','shared']){read('page="food";foodView='+JSON.stringify(v)+';render()');assert.ok(!nodes.app.innerHTML.includes('NaN'));}
+for(const v of ['board','carriers','tracking','recurring']){read('page="transport";logisticsView='+JSON.stringify(v)+';render()');assert.ok(!nodes.app.innerHTML.includes('undefined'));}
+for(const v of ['partners','documents','audit']){read('page="network";networkView='+JSON.stringify(v)+';render()');assert.ok(!nodes.app.innerHTML.includes('undefined'));}
+console.log('PASS: matching, stock reservations, pooled delivered costs, general-fund attribution, carrier review, linked funding, evidence gates, receiving, recurring drafts and organization onboarding.');
+read('state=seed();state.role="ops";ex().fund.recipient="Demo fund";const canceledGift=addGeneralDonation("Returns test",100);confirmGeneralDonation(canceledGift.id);allocateGeneral({donationId:canceledGift.id,targetType:"order",targetId:"O-3101",purpose:"food",amount:100,reason:"Rice support"});order("O-3101").status="Canceled";reconcileAllocations()');
+assert.equal(read('generalAvailable()'),100,'Canceled destinations return money to the general fund');
+assert.equal(read('held(item("F-1046"))'),0,'Canceled pooled orders release inventory holds');
+read('state=seed();state.role="ops";joinPool("POOL-4101",banks[2],3);confirmPool("POOL-4101");const refundShipment=createPoolShipment("POOL-4101");ex().fund.recipient="Demo fund";const refundGift=addGeneralDonation("Freight returns",100);confirmGeneralDonation(refundGift.id);allocateGeneral({donationId:refundGift.id,targetType:"order",targetId:"O-3101",purpose:"delivery",amount:100,reason:"Freight support"});releaseShipmentFunding(refundShipment)');
+assert.equal(read('confirmed(refundShipment)'),0);
+assert.equal(read('generalAvailable()'),100);
+assert.equal(read('orderSum(order("O-3101"),"food","Confirmed")'),1200,'Releasing freight must preserve food funding');
+console.log('PASS: cancellations and freight reconciliation return general funds without losing food funding or inventory.');

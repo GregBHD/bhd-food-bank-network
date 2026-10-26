@@ -27,15 +27,16 @@ let state;try{const s=JSON.parse(localStorage.getItem(storageKey));state=s?.vers
 if(addSaleDemoListing(state)){try{localStorage.setItem(storageKey,JSON.stringify(state));}catch{/* The listing remains available for this session when storage is full. */}}
 const item=id=>state.items.find(x=>x.id===id),ship=id=>state.shipments.find(x=>x.id===id);
 const target=s=>round(s.linehaul+s.handling+s.fee);
-const confirmed=s=>round(s.pledges.filter(p=>p.status==='Confirmed').reduce((a,p)=>a+p.amount,0));
-const pending=s=>round(s.pledges.filter(p=>p.status==='Pending').reduce((a,p)=>a+p.amount,0));
+const deliveryPledges=s=>[...s.pledges,...(s.orderFundingId?(state.orders?.find(o=>o.id===s.orderFundingId)?.pledges||[]).filter(p=>p.delivery>0).map(p=>({...p,amount:p.delivery})):[])];
+const confirmed=s=>round(s.pledges.filter(p=>p.status==='Confirmed').reduce((a,p)=>a+p.amount,0)+(s.orderFundingId?(state.orders?.find(o=>o.id===s.orderFundingId)?.pledges||[]).filter(p=>p.status==='Confirmed').reduce((a,p)=>a+(p.delivery||0),0):0));
+const pending=s=>round(s.pledges.filter(p=>p.status==='Pending').reduce((a,p)=>a+p.amount,0)+(s.orderFundingId?(state.orders?.find(o=>o.id===s.orderFundingId)?.pledges||[]).filter(p=>p.status==='Pending').reduce((a,p)=>a+(p.delivery||0),0):0));
 const activePledges=s=>s.pledges.filter(p=>['Pending','Confirmed'].includes(p.status));
 const available=s=>Math.max(0,round(target(s)-confirmed(s)-pending(s)));
 const held=f=>f.allocations.filter(a=>['Requested','Confirmed'].includes(a.status)).reduce((a,x)=>a+x.pallets,0);
 const accepted=f=>f?.allocations.filter(a=>a.status==='Confirmed').reduce((a,x)=>a+x.pallets,0)||0;
 const openFood=f=>f.status==='Open'&&f.deadline>=demoDate;
 const ops=()=>state.role==='ops';
-const roleLabel=()=>({bank:'Food Banks',donor:'Donors & Sponsors',ops:'BHD Operations'}[state.role]);
-const canDispatch=s=>s.status==='Planning'&&!s.review&&!!s.carrier&&s.validated&&target(s)>0&&confirmed(s)>=target(s)&&(!s.itemId||(openFood(item(s.itemId))&&accepted(item(s.itemId))===s.pallets));
+const roleLabel=()=>({bank:'Food Banks',donor:'Donors & Sponsors',ops:'BHD Operations',carrier:'Carriers'}[state.role]);
+const basicCanDispatch=s=>s.status==='Planning'&&!s.review&&!!s.carrier&&s.validated&&target(s)>0&&confirmed(s)>=target(s)&&(!s.itemId||(openFood(item(s.itemId))&&accepted(item(s.itemId))===s.pallets));
 const uid=p=>p+Math.random().toString(36).slice(2,9);
 const date=d=>new Date(d+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});

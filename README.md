@@ -1,6 +1,6 @@
 # Food It Forward
 
-**Give food. Fund food. Get it there.** Powered by Backhaul Direct.
+**Find the food. Pool the purchase. Fund the need. Get it delivered.** Powered by Backhaul Direct.
 
 Buildless HTML/CSS/JavaScript prototype. All organizations, prices, records, and impact are illustrative. No external messages, payments, or bookings are performed.
 

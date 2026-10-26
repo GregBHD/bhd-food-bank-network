@@ -1,4 +1,6 @@
-# BHD | Food Bank Network
+# Food It Forward
+
+**Give food. Fund food. Get it there.** Powered by Backhaul Direct.
 
 Buildless HTML/CSS/JavaScript prototype. All organizations, prices, records, and impact are illustrative. No external messages, payments, or bookings are performed.
 
@@ -45,7 +47,7 @@ The checks cover funding totals, allocation limits, dispatch requirements, compl
 
 ## Current limits
 
-The message board, listings, pledges and receipts are saved in browser localStorage. There is no shared backend, live chat service, payment collection or production account authentication. Making this repository public makes its source code available; it does not connect the prototype to live services.
+The message board, listings, pledges and receipts are saved in browser localStorage. There is no shared backend, live chat service, payment collection or production account authentication. Repository visibility controls access to the source code; it does not connect the prototype to live services.
 
 
 ## Order funding and leaderboard

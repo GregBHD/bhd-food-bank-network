@@ -38,9 +38,17 @@ The checks cover funding totals, allocation limits, dispatch requirements, compl
 - `dist/data.js`: fictional seed data and shared ledger helpers.
 - `dist/app.js`: food, transportation, sponsorship and delivery workflows.
 - `dist/redesign.js`: reference-style navigation, overview and message board.
-- `dist/style.css` and `dist/network.css`: base and Backhaul Direct interface styles.
+- `dist/funding.js`: food-purchase campaigns, separate funding purposes and the Impact leaderboard.
+- `dist/style.css`, `dist/network.css` and `dist/funding.css`: base and Backhaul Direct interface styles.
 - `checks/check.mjs`: dependency-free smoke and business-rule checks.
 
 ## Current limits
 
 The message board, listings, pledges and receipts are saved in browser localStorage. There is no shared backend, live chat service, payment collection or production account authentication. Making this repository public makes its source code available; it does not connect the prototype to live services.
+
+
+## Order funding and leaderboard
+
+Order funding supports food purchases by food banks, community groups and individuals. Purchasers can create campaigns with quantity, unit price and a separate transportation budget. Sponsors choose food only, transportation only or both; each amount stays assigned to its purpose. Pending contributions reserve funding space but do not count as confirmed or delivered impact. Linked purchase listings expose a Fund the order action. Funding does not reserve inventory or place a purchase order.
+
+The Impact funding leaderboard ranks confirmed contributions across orders and delivery campaigns, with filters for all funding, food purchases and transportation. Pending pledges and canceled campaigns are excluded; matching support is credited once to the matching sponsor. Milestones use the selected category's cumulative confirmed dollars. Completed-delivery impact remains separate.

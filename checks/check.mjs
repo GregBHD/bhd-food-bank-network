@@ -1,0 +1,32 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const nodes={};
+const node=id=>nodes[id]??={innerHTML:'',textContent:'',classList:{add(){},remove(){}},focus(){}};
+const handlers={};
+const context=vm.createContext({console,Intl,Date,Math,JSON,Number,String,Set,Error,localStorage:{getItem(){return null},setItem(){}},setTimeout(){},clearTimeout(){},document:{getElementById:node,querySelector(){return null},addEventListener(n,fn){handlers[n]=fn},body:{classList:{add(){},remove(){}},contains(){return true}},activeElement:null},window:{scrollTo(){}}});
+vm.runInContext(fs.readFileSync('dist/data.js','utf8')+'\n'+fs.readFileSync('dist/app.js','utf8')+'\n'+fs.readFileSync('dist/redesign.js','utf8'),context);
+const read=s=>vm.runInContext(s,context);
+assert.equal(read('target(ship("D-2084"))'),1800);
+assert.equal(read('confirmed(ship("D-2084"))'),600);
+assert.equal(read('pending(ship("D-2084"))'),200);
+assert.equal(read('available(ship("D-2084"))'),1000);
+assert.equal(read('held(item("F-1042"))'),20);
+assert.equal(read('accepted(item("F-1042"))'),15);
+assert.equal(read('canDispatch(ship("D-2084"))'),false);
+read('item("F-1042").allocations[2].status="Confirmed";ship("D-2084").carrier="Demo reefer";ship("D-2084").validated=true;ship("D-2084").pledges.push({id:"p6",amount:1000,status:"Pending"})');
+assert.equal(read('available(ship("D-2084"))'),0);
+assert.equal(read('canDispatch(ship("D-2084"))'),false,'Pending funding must not release a truck');
+read('ship("D-2084").pledges.forEach(p=>p.status="Confirmed")');
+assert.equal(read('canDispatch(ship("D-2084"))'),true);
+read('ship("D-2084").review="Quote changed"');
+assert.equal(read('canDispatch(ship("D-2084"))'),false,'Review must hold dispatch');
+read('ship("D-2084").review="";item("F-1042").status="Closed"');
+assert.equal(read('canDispatch(ship("D-2084"))'),false,'Unavailable food must hold dispatch');
+read('state=seed()');
+for(const p of ['home','food','transport','sponsor','board','impact']){read('page='+JSON.stringify(p)+';render()');assert.ok(nodes.app.innerHTML.length>2000);assert.ok(!nodes.app.innerHTML.includes('undefined'));}
+for(const role of ['bank','donor','ops']){read('state.role='+JSON.stringify(role)+';foodDetail("F-1042");shipDetail("D-2084");pledgeDialog("D-2084");receiptDialog("D-2079")');assert.ok(nodes.overlay.innerHTML.includes('role="dialog"'));}
+read('postDialog();profileDialog();recurringDialog()');
+assert.ok(read('impactPage()').includes('46,000'));
+assert.ok(read('impactPage()').includes('$2,920'));
+console.log('PASS: funding totals, quantity reservations, dispatch gates, completed-impact totals, 6 pages and 3 portal views.');
